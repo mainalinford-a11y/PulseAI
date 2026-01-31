@@ -1,0 +1,276 @@
+{
+    "name": "Upgraded Job Matcher (PulseAI)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "job-search",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "webhook",
+            "name": "Webhook - Start Search",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                200,
+                300
+            ],
+            "webhookId": "pulse-ai-job-search"
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "SELECT id FROM users WHERE email = $1 LIMIT 1;",
+                "options": {
+                    "queryReplacement": "=$1={{ $node[\"Webhook - Start Search\"].json[\"body\"][\"email\"] }}"
+                }
+            },
+            "id": "get-user",
+            "name": "Postgres - Get User ID",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                450,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "neon-credentials",
+                    "name": "Neon PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "INSERT INTO job_searches (user_id, job_title, location, keywords) VALUES ($1, $2, $3, $4) RETURNING id;",
+                "options": {
+                    "queryReplacement": "=$1={{ $node[\"Postgres - Get User ID\"].json[\"id\"] }},$2={{ $node[\"Webhook - Start Search\"].json[\"body\"][\"job_title\"] }},$3={{ $node[\"Webhook - Start Search\"].json[\"body\"][\"location\"] }},$4={{ '{' + $node[\"Webhook - Start Search\"].json[\"body\"][\"job_title\"] + '}' }}"
+                }
+            },
+            "id": "create-search",
+            "name": "Postgres - Create Search Record",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                700,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "neon-credentials",
+                    "name": "Neon PostgreSQL"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ {\n  \"success\": true,\n  \"searchId\": $node[\"Postgres - Create Search Record\"].json[\"id\"],\n  \"message\": \"Search started. AI Agents are processing...\"\n} }}",
+                "options": {
+                    "responseCode": 200
+                }
+            },
+            "id": "respond-webhook",
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                950,
+                150
+            ]
+        },
+        {
+            "parameters": {
+                "resource": "actor",
+                "operation": "runAndGetDataset",
+                "actorId": "hKByXkMQaC5Qt9UMN",
+                "runInput": "={{ {\n  \"searchQueries\": $node[\"Webhook - Start Search\"].json[\"body\"][\"job_title\"] + \" in \" + $node[\"Webhook - Start Search\"].json[\"body\"][\"location\"],\n  \"category\": \"Software Development\",\n  \"maxIndeeedItems\": 10,\n  \"maxItems\": 10\n} }}",
+                "waitForFinish": true
+            },
+            "id": "apify-scraper",
+            "name": "Apify - Scrape Jobs",
+            "type": "@apify/n8n-nodes-apify.apify",
+            "typeVersion": 1,
+            "position": [
+                950,
+                300
+            ],
+            "credentials": {
+                "apifyApi": {
+                    "id": "apify-credentials",
+                    "name": "Apify API"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "batchSize": 1,
+                "options": {}
+            },
+            "id": "batch-split",
+            "name": "Split in Batches",
+            "type": "n8n-nodes-base.splitInBatches",
+            "typeVersion": 3,
+            "position": [
+                1200,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "model": "llama3.2",
+                "prompt": "=You are a Senior Technical Recruiter. Compare the following Candidate CV with the Job Details provided.\n\nCANDIDATE CV:\n{{ $node[\"Webhook - Start Search\"].json[\"body\"][\"cv_text\"] }}\n\nJOB DETAILS:\nTitle: {{ $json.title }}\nCompany: {{ $json.companyName }}\nLocation: {{ $json.location }}\nDescription: {{ $json.descriptionHtml || $json.description }}\n\nSCORING INSTRUCTIONS:\n1. Calculate a \"match_score\" (0-100) based on skills, experience level, and industry fit.\n2. CRITICAL RULE: Set \"is_qualified\" to true ONLY if the match_score is 70 or higher. If the score is 69 or below, \"is_qualified\" MUST be false.\n3. Provide a concise \"reason\" for the score (max 20 words).\n\nOUTPUT FORMAT (JSON Only):\n{\n  \"match_score\": number,\n  \"is_qualified\": boolean,\n  \"reason\": \"string\"\n}",
+                "options": {
+                    "temperature": 0.2
+                }
+            },
+            "id": "ollama-eval",
+            "name": "Ollama - AI Analysis",
+            "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+            "typeVersion": 1,
+            "position": [
+                1450,
+                300
+            ],
+            "credentials": {
+                "ollamaApi": {
+                    "id": "ollama-credentials",
+                    "name": "Ollama Local"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "try {\n  const raw = $input.item.json.response || $input.item.json.text || '{}';\n  // Extract JSON if wrapped in markdown code blocks\n  const jsonStr = raw.replace(/```json/g, '').replace(/```/g, '').trim();\n  const parsed = JSON.parse(jsonStr);\n  \n  return {\n    search_id: $node[\"Postgres - Create Search Record\"].json[\"id\"],\n    user_id: $node[\"Postgres - Get User ID\"].json[\"id\"],\n    job_title: $node[\"Split in Batches\"].json[\"title\"],\n    company_name: $node[\"Split in Batches\"].json[\"companyName\"],\n    job_url: $node[\"Split in Batches\"].json[\"url\"],\n    location: $node[\"Split in Batches\"].json[\"location\"],\n    description: $node[\"Split in Batches\"].json[\"descriptionHtml\"],\n    match_score: parsed.match_score || 0,\n    qualification_status: parsed.is_qualified || false,\n    match_reason: parsed.reason || 'No reason provided'\n  };\n} catch (e) {\n  return { error: 'Failed to parse AI response', raw: $input.item.json };\n}"
+            },
+            "id": "parse-ai",
+            "name": "Parse AI Output",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1700,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "executeQuery",
+                "query": "INSERT INTO job_matches (user_id, search_id, job_title, company_name, job_url, location, description, match_score, qualification_status, match_reason) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) ON CONFLICT (job_url) DO UPDATE SET match_score = EXCLUDED.match_score;",
+                "options": {
+                    "queryReplacement": "=$1={{ $json.user_id }},$2={{ $json.search_id }},$3={{ $json.job_title }},$4={{ $json.company_name }},$5={{ $json.job_url }},$6={{ $json.location }},$7={{ $json.description }},$8={{ $json.match_score }},$9={{ $json.qualification_status }},$10={{ $json.match_reason }}"
+                }
+            },
+            "id": "save-match",
+            "name": "Postgres - Save Match",
+            "type": "n8n-nodes-base.postgres",
+            "typeVersion": 2.4,
+            "position": [
+                1950,
+                300
+            ],
+            "credentials": {
+                "postgres": {
+                    "id": "neon-credentials",
+                    "name": "Neon PostgreSQL"
+                }
+            }
+        }
+    ],
+    "connections": {
+        "Webhook - Start Search": {
+            "main": [
+                [
+                    {
+                        "node": "Postgres - Get User ID",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Postgres - Get User ID": {
+            "main": [
+                [
+                    {
+                        "node": "Postgres - Create Search Record",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Postgres - Create Search Record": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Apify - Scrape Jobs",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Apify - Scrape Jobs": {
+            "main": [
+                [
+                    {
+                        "node": "Split in Batches",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Split in Batches": {
+            "main": [
+                [
+                    {
+                        "node": "Ollama - AI Analysis",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Ollama - AI Analysis": {
+            "main": [
+                [
+                    {
+                        "node": "Parse AI Output",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse AI Output": {
+            "main": [
+                [
+                    {
+                        "node": "Postgres - Save Match",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Postgres - Save Match": {
+            "main": [
+                [
+                    {
+                        "node": "Split in Batches",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    }
+}

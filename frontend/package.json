@@ -1,0 +1,44 @@
+{
+  "name": "jobmatch-ai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.352.0",
+    "@neondatabase/serverless": "^0.9.0",
+    "bcryptjs": "^2.4.3",
+    "cookie": "^0.5.0",
+    "dotenv": "^17.2.3",
+    "form-data": "^4.0.5",
+    "formidable": "^3.5.4",
+    "jsonwebtoken": "^9.0.0",
+    "mammoth": "^1.11.0",
+    "next": "^16.1.6",
+    "node-fetch": "^3.3.2",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.17.2",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cookie": "^0.5.1",
+    "@types/formidable": "^3.4.5",
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/node": "^20.10.6",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^18.2.46",
+    "@types/react-dom": "^18.2.18",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^9.39.2",
+    "eslint-config-next": "^16.1.6",
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3"
+  }
+}

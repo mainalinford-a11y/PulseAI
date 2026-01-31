@@ -7,11 +7,13 @@ export default function Dashboard() {
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
   const [userId, setUserId] = useState('');
+  const [tier, setTier] = useState<'free' | 'starter' | 'pro' | 'premium'>('free');
   const [testMode, setTestMode] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: 'success' | 'error', msg: string } | null>(null);
   const [matches, setMatches] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'new' | 'applied'>('new');
+  const [activeTab, setActiveTab] = useState<'new' | 'applied' | 'saved'>('new');
+  const [isGeneratingCL, setIsGeneratingCL] = useState<string | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
   const [uploadedCvs, setUploadedCvs] = useState<Array<{ filename: string; url: string }>>([]);
@@ -25,7 +27,6 @@ export default function Dashboard() {
 
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // Get user from localStorage or API
   useEffect(() => {
     const loadUser = async () => {
       try {
@@ -36,6 +37,7 @@ export default function Dashboard() {
           setUserName(u.name || '');
           setUserEmail(u.email || '');
           setUserId(u.id || '');
+          setTier(u.tier || 'free');
           if (u.cv_url) {
             setUploadedCvs([{ filename: u.cv_url.split('/').pop() || 'cv', url: u.cv_url }]);
             setSelectedCvUrl(u.cv_url);
@@ -48,7 +50,6 @@ export default function Dashboard() {
       } catch (err: any) {
         setAuthError(`Connection Error: ${err.message}`);
       }
-      // router.push('/login');
     };
     loadUser();
   }, [router]);
@@ -113,37 +114,67 @@ export default function Dashboard() {
       }
 
       if (response.ok && result.success) {
-        setStatus({ type: 'success', msg: `Search started (ID: ${result.searchId || 'pending'})! Our AI Agents are hunting. This usually takes 2-3 minutes...` });
+        setStatus({ type: 'success', msg: `Search started! AI Agents are hunting. This usually takes 2-3 minutes...` });
         setFile(null);
         setFormData({ ...formData, cvText: '' });
         fetchMatches();
       } else {
-        throw new Error(result.error || `Server Error ${response.status}: ${text.substring(0, 100)}`);
+        throw new Error(result.error || `Server Error ${response.status}`);
       }
     } catch (err: any) {
-      console.error("Search Trigger Error:", err);
       setStatus({ type: 'error', msg: `Search Failed: ${err.message}` });
     } finally {
       setLoading(false);
     }
   };
 
-  const markAsApplied = async (jobId: string, url: string) => {
-    // Open in new tab
-    window.open(url, '_blank');
-
-    // Update status in DB
+  const updateJobStatus = async (jobId: string, newStatus: string) => {
     try {
-      await fetch('/api/jobs/update-status', {
+      const res = await fetch('/api/jobs/update-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobId, status: 'applied' })
+        body: JSON.stringify({ jobId, status: newStatus })
       });
-      // Refresh matches to move it to 'applied' tab
-      fetchMatches();
+      if (res.ok) fetchMatches();
     } catch (err) {
       console.error('Failed to update status', err);
     }
+  };
+
+  const handleGenerateCL = async (matchId: string) => {
+    if (tier === 'free' || tier === 'starter') return;
+    setIsGeneratingCL(matchId);
+    try {
+      const res = await fetch('/api/jobs/generate-cover-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ matchId })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert("Cover Letter Generated Successfully!\n\n" + data.content);
+      } else {
+        alert("Error: " + data.error);
+      }
+    } catch (err) {
+      alert("Failed to generate cover letter");
+    } finally {
+      setIsGeneratingCL(null);
+    }
+  };
+
+  const handleTierChange = async (newTier: string) => {
+    try {
+      const res = await fetch('/api/user/update-tier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier: newTier })
+      });
+      if (res.ok) {
+        setTier(newTier as any);
+        fetchMatches();
+      }
+    } catch (err) { }
   };
 
   const handleLogout = async () => {
@@ -151,24 +182,20 @@ export default function Dashboard() {
     router.push('/login');
   };
 
-  // Filter matches
-  const newMatches = matches.filter(m => m.user_status === 'new' || !m.user_status);
-  const appliedMatches = matches.filter(m => m.user_status === 'applied');
-  const displayMatches = activeTab === 'new' ? newMatches : appliedMatches;
+  // Tier Logic - Filter and Limit
+  const filteredMatches = tier === 'free' ? matches.slice(0, 10) : matches;
+  const newMatches = filteredMatches.filter(m => (!m.user_status || m.user_status === 'new') && m.user_status !== 'not_interested');
+  const appliedMatches = filteredMatches.filter(m => m.user_status === 'applied');
+  const savedMatches = filteredMatches.filter(m => m.user_status === 'saved');
+
+  const displayMatches = activeTab === 'new' ? newMatches : activeTab === 'applied' ? appliedMatches : savedMatches;
 
   if (authError) return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-red-50 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-red-200">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Authentication Error</h1>
-        <p className="text-gray-700 bg-gray-50 p-4 rounded-xl font-mono text-sm break-all mb-6">
-          {authError}
-        </p>
-        <button
-          onClick={() => router.push('/login')}
-          className="w-full py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all"
-        >
-          Go Back to Login
-        </button>
+      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-red-200 text-center">
+        <h1 className="text-2xl font-bold text-red-600 mb-4">Session Expired</h1>
+        <p className="text-gray-600 mb-6 font-medium">Your session has timed out. Please sign in again.</p>
+        <button onClick={() => router.push('/login')} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all">Sign In</button>
       </div>
     </div>
   );
@@ -178,229 +205,225 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       {/* Header */}
-      <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 backdrop-blur-lg bg-white/80">
+      <nav className="bg-white border-b border-gray-100 sticky top-0 z-50 backdrop-blur-md bg-white/70">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
           <Link href="/dashboard" className="group transition-transform hover:scale-105">
             <div className="w-32 h-12">
-              <img src="/logo.jpg" alt="PulseAI" className="w-full h-full object-contain brightness-110" />
+              <img src="/logo.jpg" alt="PulseAI" className="w-full h-full object-contain" />
             </div>
           </Link>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-gray-500 hidden sm:block">Welcome, {userName}</span>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 text-sm font-medium text-gray-600 hover:text-red-600 transition-colors"
-            >
-              Sign Out
-            </button>
+          <div className="flex items-center gap-6">
+            <div className="flex bg-gray-100 p-1 rounded-xl">
+              {(['free', 'starter', 'pro'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => handleTierChange(t)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all ${tier === t ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-right hidden sm:block">
+                <p className="text-xs font-bold text-gray-900 leading-none">{userName}</p>
+                <p className="text-[10px] text-blue-600 font-bold uppercase mt-1">{tier} Plan</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                title="Sign Out"
+              >
+                <span className="text-xl">⏻</span>
+              </button>
+            </div>
           </div>
         </div>
       </nav>
 
-      <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 mt-6">
-        {/* Left Sidebar: Controls */}
+      <div className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8 mt-4">
+        {/* Left Sidebar */}
         <div className="lg:col-span-4 space-y-6">
-          {/* Search Card */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="p-6 bg-gradient-to-br from-blue-600 to-blue-700 text-white">
-              <h2 className="text-lg font-bold">Start New Search</h2>
-              <p className="text-blue-100 text-sm mt-1">Configure your agent parameters</p>
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-6 bg-gradient-to-br from-blue-600 to-indigo-700 text-white">
+              <h2 className="text-lg font-bold">Job Agent</h2>
+              <p className="text-blue-100 text-xs mt-1">AI-powered hunt configuration</p>
             </div>
 
             <form onSubmit={handleStartSearch} className="p-6 space-y-5">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Target Job Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Senior Product Designer"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  value={formData.jobTitle}
-                  onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
-                  required
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 pl-1">Target Role</label>
+                  <input
+                    type="text"
+                    placeholder="Senior React Developer"
+                    className="w-full px-4 py-3 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium"
+                    value={formData.jobTitle}
+                    onChange={(e) => setFormData({ ...formData, jobTitle: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2 pl-1">Location preference</label>
+                  <input
+                    type="text"
+                    placeholder="Remote, Worldwide"
+                    className="w-full px-4 py-3 bg-gray-50 border-0 rounded-2xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm font-medium"
+                    value={formData.location}
+                    onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Location</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Remote, London"
-                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  value={formData.location}
-                  onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                />
-              </div>
-
-              <div className="flex items-center gap-2 px-1">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-2xl">
                 <input
                   type="checkbox"
                   id="test-mode"
                   checked={testMode}
                   onChange={(e) => setTestMode(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-0 bg-white rounded focus:ring-blue-500"
                 />
-                <label htmlFor="test-mode" className="text-sm font-medium text-gray-600 cursor-pointer">
-                  Enable Test Mode (n8n Debug)
+                <label htmlFor="test-mode" className="text-xs font-bold text-gray-500 cursor-pointer uppercase tracking-wider">
+                  Debug Mode
                 </label>
               </div>
 
-              <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3.5 bg-gray-900 hover:bg-black text-white rounded-xl font-bold shadow-lg hover:shadow-xl transition-all flex justify-center items-center gap-2 group"
-                >
-                  {loading ? (
-                    'Agent Working...'
-                  ) : (
-                    <>
-                      <span>Launch Agent</span>
-                      <span className="group-hover:translate-x-1 transition-transform">→</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-bold shadow-xl shadow-gray-200 transition-all flex justify-center items-center gap-3 active:scale-95 disabled:opacity-50"
+              >
+                {loading ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span>Start Hunt</span>}
+              </button>
 
               {status && (
-                <div className={`p-4 rounded-xl text-sm font-medium ${status.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                <div className={`p-4 rounded-2xl text-xs font-bold ${status.type === 'success' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
                   {status.msg}
                 </div>
               )}
             </form>
           </div>
 
-          {/* CV Management */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
-              <span className="text-xl">📄</span> Resume
-            </h3>
-
-            <div className="space-y-4">
-              {uploadedCvs.length > 0 ? (
-                <div className="p-3 bg-blue-50 border border-blue-100 rounded-xl relative">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="bg-white p-2 rounded-lg text-lg shadow-sm">📄</div>
-                      <div className="overflow-hidden">
-                        <p className="font-semibold text-sm text-gray-900 truncate max-w-[150px]">{uploadedCvs[0].filename}</p>
-                        <p className="text-xs text-blue-600">Active Resume</p>
-                      </div>
-                    </div>
-                    <span className="text-green-600 text-xs font-bold bg-green-100 px-2 py-1 rounded-full">Ready</span>
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-6">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4 pl-1">Resume Data</h3>
+            {uploadedCvs.length > 0 ? (
+              <div className="p-4 bg-blue-50 rounded-2xl flex items-center justify-between group">
+                <div className="flex items-center gap-3">
+                  <div className="bg-white w-10 h-10 rounded-xl flex items-center justify-center shadow-sm text-lg">📄</div>
+                  <div className="overflow-hidden">
+                    <p className="font-bold text-xs text-gray-900 truncate max-w-[120px]">{uploadedCvs[0].filename}</p>
+                    <p className="text-[10px] text-blue-600 font-bold uppercase tracking-tighter">Verified AI Ready</p>
                   </div>
-                  <button
-                    onClick={() => {
-                      setUploadedCvs([]);
-                      setSelectedCvUrl(null);
-                      setFile(null);
-                    }}
-                    className="w-full text-xs font-bold text-gray-500 hover:text-blue-600 py-2 border-t border-blue-100 transition-colors"
-                  >
-                    Change Resume
-                  </button>
                 </div>
-              ) : (
-                <div className="text-center p-6 border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
-                  <p className="text-sm text-gray-500 mb-2">No resume uploaded</p>
-                  <label className="text-blue-600 font-bold text-sm cursor-pointer hover:underline">
-                    Upload PDF/DOCX
-                    <input type="file" className="hidden" accept=".pdf,.docx,.doc" onChange={async (e) => {
-                      const f = e.target.files?.[0];
-                      if (f) {
-                        setFile(f);
-                        // Auto upload logic here similar to before
-                        const form = new FormData();
-                        form.append('cv_file', f);
-                        form.append('email', userEmail);
-                        try {
-                          const res = await fetch('/api/user/upload-cv', { method: 'POST', body: form });
-                          if (res.ok) {
-                            const j = await res.json();
-                            setUploadedCvs([{ filename: j.filename, url: j.cvUrl }]);
-                            setSelectedCvUrl(j.cvUrl);
-                          }
-                        } catch (e) { }
+                <button onClick={() => { setUploadedCvs([]); setSelectedCvUrl(null); }} className="text-gray-300 hover:text-red-500 transition-colors">✕</button>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-100 rounded-3xl bg-gray-50/50 cursor-pointer hover:bg-gray-50 transition-all">
+                <span className="text-2xl mb-2">📁</span>
+                <span className="text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Upload PDF Resume</span>
+                <input type="file" className="hidden" accept=".pdf" onChange={async (e) => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    const form = new FormData();
+                    form.append('cv_file', f);
+                    form.append('email', userEmail);
+                    try {
+                      const res = await fetch('/api/user/upload-cv', { method: 'POST', body: form });
+                      if (res.ok) {
+                        const j = await res.json();
+                        setUploadedCvs([{ filename: j.filename, url: j.cvUrl }]);
+                        setSelectedCvUrl(j.cvUrl);
                       }
-                    }} />
-                  </label>
-                </div>
-              )}
-            </div>
+                    } catch (e) { }
+                  }
+                }} />
+              </label>
+            )}
           </div>
         </div>
 
-        {/* Right Content: Matches */}
-        <div className="lg:col-span-8">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">Job Matches</h2>
-
-            {/* Tabs */}
-            <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200">
-              <button
-                onClick={() => setActiveTab('new')}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'new' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
-                New Matches ({newMatches.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('applied')}
-                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === 'applied' ? 'bg-green-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-50'}`}
-              >
-                Applied ({appliedMatches.length})
-              </button>
+        {/* Right Content */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <h2 className="text-2xl font-black text-gray-900 tracking-tight">Intelligence Feed</h2>
+            <div className="flex bg-white p-1 rounded-2xl shadow-sm border border-gray-100">
+              {(['new', 'saved', 'applied'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-5 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${activeTab === tab ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-gray-600'}`}
+                >
+                  {tab}
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="space-y-4">
             {displayMatches.length === 0 ? (
-              <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm">
-                <div className="text-6xl mb-4">🔍</div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  {activeTab === 'new' ? 'No new jobs found yet' : 'No applications tracked yet'}
-                </h3>
-                <p className="text-gray-500">
-                  {activeTab === 'new' ? 'Start a search to let our agents find the best opportunities for you.' : 'When you apply to jobs, they will appear here.'}
-                </p>
+              <div className="bg-white rounded-3xl p-20 text-center border border-gray-50 shadow-sm">
+                <span className="text-5xl block mb-6 grayscale opacity-20">📡</span>
+                <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">No signals detected yet</p>
+                {tier === 'free' && matches.length > 10 && (
+                  <div className="mt-6 p-4 bg-amber-50 rounded-2xl border border-amber-100">
+                    <p className="text-xs font-bold text-amber-700">You have more matches! Upgrade to Starter or Pro to unlock the full feed.</p>
+                  </div>
+                )}
               </div>
             ) : (
               displayMatches.map((job) => (
-                <div key={job.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow group relative overflow-hidden">
-                  {/* Match Score Indicator */}
-                  <div className="absolute top-0 right-0 p-4">
-                    <div className={`flex flex-col items-center justify-center w-16 h-16 rounded-2xl ${job.match_score > 80 ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'}`}>
-                      <span className="text-xl font-bold">{job.match_score}%</span>
-                      <span className="text-[10px] uppercase font-bold tracking-wider">Match</span>
-                    </div>
-                  </div>
+                <div key={job.id} className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-gray-100 hover:shadow-xl hover:scale-[1.01] transition-all group relative">
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className={`w-2 h-2 rounded-full ${job.match_score >= 80 ? 'bg-green-500 animate-pulse' : job.match_score >= 60 ? 'bg-amber-400' : 'bg-gray-300'}`} />
+                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">{job.company_name}</span>
+                      </div>
+                      <h3 className="text-xl font-black text-gray-900 mb-1 group-hover:text-blue-600 transition-colors uppercase leading-tight">{job.job_title}</h3>
+                      <p className="text-sm font-bold text-gray-500 mb-6 flex items-center gap-2">📍 {job.location || 'Distributed'}</p>
 
-                  <div className="pr-20">
-                    <h3 className="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{job.job_title}</h3>
-                    <p className="text-gray-600 font-medium mb-1">{job.company_name}</p>
-                    <div className="flex items-center gap-4 text-sm text-gray-500 mb-4">
-                      <span className="flex items-center gap-1">📍 {job.location || 'Remote'}</span>
-                      <span className="flex items-center gap-1">🕒 {new Date(job.evaluated_at || Date.now()).toLocaleDateString()}</span>
-                    </div>
-
-                    {activeTab === 'new' && (
-                      <div className="flex gap-3">
+                      <div className="flex flex-wrap gap-3">
                         <button
-                          onClick={() => markAsApplied(job.id, job.job_url)}
-                          className="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-blue-200 transition-all active:scale-95 flex items-center gap-2"
+                          onClick={() => { window.open(job.job_url, '_blank'); updateJobStatus(job.id, 'applied'); }}
+                          className="px-6 py-3 bg-gray-900 hover:bg-black text-white text-[11px] font-black uppercase tracking-widest rounded-2xl shadow-lg transition-all active:scale-95"
                         >
-                          Go & Apply
-                          <span>↗</span>
+                          Apply Now
                         </button>
-                        <button className="px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-xl transition-all">
-                          View Details
-                        </button>
-                      </div>
-                    )}
 
-                    {activeTab === 'applied' && (
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-xl text-sm font-bold">
-                        <span>✓</span> Applied on {new Date(job.applied_at || Date.now()).toLocaleDateString()}
+                        {activeTab === 'new' && (
+                          <>
+                            <button
+                              onClick={() => updateJobStatus(job.id, 'saved')}
+                              className="px-4 py-3 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => updateJobStatus(job.id, 'not_interested')}
+                              className="px-4 py-3 bg-gray-50 hover:bg-red-50 text-gray-500 hover:text-red-500 text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all"
+                            >
+                              Dismiss
+                            </button>
+                          </>
+                        )}
+
+                        <button
+                          disabled={tier === 'free' || tier === 'starter' || isGeneratingCL === job.id}
+                          onClick={() => handleGenerateCL(job.id)}
+                          className={`px-4 py-3 text-[11px] font-black uppercase tracking-widest rounded-2xl transition-all ${tier === 'free' || tier === 'starter' ? 'bg-gray-50 text-gray-300 cursor-not-allowed' : 'bg-blue-50 text-blue-600 hover:bg-blue-100'}`}
+                        >
+                          {isGeneratingCL === job.id ? 'Thinking...' : (tier === 'free' || tier === 'starter') ? 'Pro: Cover Letter' : 'AI Cover Letter ✨'}
+                        </button>
                       </div>
-                    )}
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <div className={`w-20 h-20 rounded-3xl flex flex-col items-center justify-center border-4 ${job.match_score >= 80 ? 'border-green-100 bg-green-50 text-green-700' : job.match_score >= 60 ? 'border-amber-100 bg-amber-50 text-amber-700' : 'border-gray-100 bg-gray-50 text-gray-500'}`}>
+                        <span className="text-2xl font-black">{job.match_score}</span>
+                        <span className="text-[8px] font-black uppercase tracking-tighter">Score</span>
+                      </div>
+                      {job.match_score >= 80 && <span className="mt-2 text-[9px] font-black text-green-600 uppercase tracking-widest">High Fit</span>}
+                    </div>
                   </div>
                 </div>
               ))

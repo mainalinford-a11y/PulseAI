@@ -20,7 +20,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
 
         const result = await query(
-            'SELECT id, email, full_name, cv_url, subscription_tier FROM users WHERE id = $1::integer',
+            'SELECT id, email, full_name, cv_url, subscription_tier FROM users WHERE id = $1::uuid',
             [payload.id]
         );
 

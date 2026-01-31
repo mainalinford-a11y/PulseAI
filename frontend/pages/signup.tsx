@@ -94,11 +94,10 @@ export default function SignupPage() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md mx-auto w-full">
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex flex-col items-center gap-2 group">
-            <div className="w-20 h-20 bg-gray-900 rounded-2xl p-1 shadow-lg group-hover:scale-105 transition-transform overflow-hidden">
-              <img src="/logo.jpg" alt="PulseAI Logo" className="w-full h-full object-cover" />
+          <Link href="/" className="group transition-transform hover:scale-110">
+            <div className="w-24 h-24 overflow-hidden rounded-2xl shadow-xl mx-auto">
+              <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto scale-[2.2] origin-top brightness-110" />
             </div>
-            <span className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">PulseAI</span>
           </Link>
           <h1 className="mt-6 text-3xl font-bold text-gray-900">Create Account</h1>
           <p className="mt-2 text-gray-600">Join PulseAI for job matching</p>

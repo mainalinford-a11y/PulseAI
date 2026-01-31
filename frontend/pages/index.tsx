@@ -22,11 +22,10 @@ export default function Home() {
 
       {/* Navigation */}
       <nav className="flex justify-between items-center px-8 py-6 max-w-7xl mx-auto">
-        <Link href="/" className="flex items-center gap-2 group">
-          <div className="w-10 h-10 bg-gray-900 rounded-lg p-0.5 shadow-sm group-hover:scale-110 transition-transform overflow-hidden">
-            <img src="/logo.jpg" alt="Logo" className="w-full h-full object-cover" />
+        <Link href="/" className="group transition-transform hover:scale-105">
+          <div className="w-14 h-14 overflow-hidden rounded-xl shadow-sm">
+            <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto scale-[2.2] origin-top brightness-110" />
           </div>
-          <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">PulseAI</span>
         </Link>
         <div className="space-x-6 flex items-center">
           <Link href="/login" className="text-gray-600 hover:text-blue-600 font-medium transition-colors">Login</Link>

@@ -65,8 +65,8 @@ export default function ResetPasswordPage() {
             <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
                 <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
                     <Link href="/" className="group transition-transform hover:scale-110 mb-6">
-                        <div className="w-40 h-24 overflow-hidden rounded-xl mx-auto">
-                            <img src="/logo.jpg" alt="Logo" className="w-full h-auto -translate-y-[10%] scale-[1.3] brightness-110" />
+                        <div className="w-56 h-36 mx-auto">
+                            <img src="/logo.jpg" alt="Logo" className="w-full h-full object-contain brightness-110" />
                         </div>
                     </Link>
                     <h1 className="text-2xl font-bold text-red-600 mb-4">Invalid Link</h1>
@@ -83,8 +83,8 @@ export default function ResetPasswordPage() {
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-6 lg:px-8 font-sans">
             <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
                 <Link href="/" className="group transition-transform hover:scale-105">
-                    <div className="w-56 h-36 overflow-hidden rounded-2xl mx-auto mb-6">
-                        <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto -translate-y-[5%] scale-110 brightness-110" />
+                    <div className="w-64 h-40 mx-auto mb-4">
+                        <img src="/logo.jpg" alt="PulseAI" className="w-full h-full object-contain brightness-110" />
                     </div>
                 </Link>
                 <h2 className="mt-6 text-3xl font-bold tracking-tight text-gray-900">Set New Password</h2>

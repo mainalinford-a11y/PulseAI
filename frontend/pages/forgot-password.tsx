@@ -45,9 +45,9 @@ export default function ForgotPasswordPage() {
     return (
         <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 px-6 lg:px-8 font-sans">
             <div className="sm:mx-auto sm:w-full sm:max-w-md text-center">
-                <Link href="/" className="group transition-transform hover:scale-110">
-                    <div className="w-24 h-24 overflow-hidden rounded-2xl shadow-xl mx-auto mb-4">
-                        <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto scale-[2.2] origin-top brightness-110" />
+                <Link href="/" className="group transition-transform hover:scale-105">
+                    <div className="w-56 h-36 overflow-hidden rounded-2xl mx-auto mb-6">
+                        <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto -translate-y-[5%] scale-110 brightness-110" />
                     </div>
                 </Link>
                 <h2 className="mt-6 text-3xl font-bold tracking-tight text-gray-900">Reset Password</h2>

@@ -180,9 +180,9 @@ export default function Dashboard() {
       {/* Header */}
       <nav className="bg-white border-b border-gray-200 sticky top-0 z-50 backdrop-blur-lg bg-white/80">
         <div className="max-w-7xl mx-auto px-6 py-3 flex justify-between items-center">
-          <Link href="/dashboard" className="group transition-transform hover:scale-110">
-            <div className="w-10 h-10 overflow-hidden rounded-lg shadow-sm">
-              <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto scale-[2.2] origin-top brightness-110" />
+          <Link href="/dashboard" className="group transition-transform hover:scale-105">
+            <div className="w-24 h-10 overflow-hidden rounded-lg">
+              <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto -translate-y-[15%] scale-[1.5] brightness-110" />
             </div>
           </Link>
           <div className="flex items-center gap-4">

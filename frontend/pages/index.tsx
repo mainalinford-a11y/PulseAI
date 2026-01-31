@@ -23,8 +23,8 @@ export default function Home() {
       {/* Navigation */}
       <nav className="flex justify-between items-center px-8 py-6 max-w-7xl mx-auto">
         <Link href="/" className="group transition-transform hover:scale-105">
-          <div className="w-14 h-14 overflow-hidden rounded-xl shadow-sm">
-            <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto scale-[2.2] origin-top brightness-110" />
+          <div className="w-40 h-20 overflow-hidden rounded-xl">
+            <img src="/logo.jpg" alt="PulseAI" className="w-full h-auto -translate-y-[10%] scale-[1.3] brightness-110" />
           </div>
         </Link>
         <div className="space-x-6 flex items-center">

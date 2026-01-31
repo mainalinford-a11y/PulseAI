@@ -192,10 +192,24 @@ export default function Dashboard() {
 
   if (authError) return (
     <div className="min-h-screen flex flex-col justify-center items-center bg-red-50 p-4">
-      <div className="bg-white p-8 rounded-2xl shadow-xl max-w-md w-full border border-red-200 text-center">
-        <h1 className="text-2xl font-bold text-red-600 mb-4">Session Expired</h1>
-        <p className="text-gray-600 mb-6 font-medium">Your session has timed out. Please sign in again.</p>
-        <button onClick={() => router.push('/login')} className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold shadow-lg hover:bg-blue-700 transition-all">Sign In</button>
+      <div className="bg-white p-8 rounded-3xl shadow-xl max-w-lg w-full border border-red-200 text-center">
+        <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+          <span className="text-4xl">🔒</span>
+        </div>
+        <h1 className="text-2xl font-black text-gray-900 mb-2">Access Denied</h1>
+        <p className="text-gray-500 mb-6 font-medium">We couldn't verify your session. This usually happens if your login expired.</p>
+
+        <div className="bg-gray-50 p-4 rounded-2xl text-[10px] font-mono text-left text-red-500 mb-6 overflow-auto max-h-32 border border-gray-100">
+          <strong>Debug Detail:</strong><br />
+          {authError}
+        </div>
+
+        <button
+          onClick={() => router.push('/login')}
+          className="w-full py-4 bg-blue-600 text-white rounded-2xl font-bold shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all active:scale-95"
+        >
+          Return to Sign In
+        </button>
       </div>
     </div>
   );
